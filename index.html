@@ -113,6 +113,13 @@
         .incorrect {
             color: #ff6666;
         }
+        
+        .game-footer {
+            border-top: 2px solid #00ff00;
+            padding: 10px;
+            text-align: center;
+            background-color: #003300;
+        }
     </style>
 </head>
 <body>
@@ -138,9 +145,13 @@
                     <div>Answer questions correctly to earn gold and buy gear!</div>
                     <br>
                     <button onclick="startGame()">Start Game</button>
-                    <button onclick="showShop()">Visit Shop</button>
                 </div>
             </div>
+        </div>
+        
+        <div class="game-footer">
+            <button onclick="showShop()">Visit Shop</button>
+            <button onclick="confirmNewGame()" id="new-game-btn">New Game</button>
         </div>
     </div>
 
@@ -158,21 +169,67 @@
                     this.definitionsToPrefix[def].push(prefix);
                 }
                 
-                this.player = {
-                    level: 1, strength: 10, intelligence: 10, gold: 0,
-                    armor: "cloth robe", weapon: "wooden staff"
-                };
-                
                 this.shopItems = EQUIPMENT;
-                
-                this.questionsAnswered = 0;
+                this.loadGame();
+            }
+            
+            saveGame() {
+                const gameState = {
+                    player: this.player,
+                    questionsAnswered: this.questionsAnswered,
+                    questionPool: this.questionPool
+                };
+                localStorage.setItem('prefixGameSave', JSON.stringify(gameState));
+            }
+            
+            loadGame() {
+                const saved = localStorage.getItem('prefixGameSave');
+                if (saved) {
+                    const gameState = JSON.parse(saved);
+                    this.player = gameState.player;
+                    this.questionsAnswered = gameState.questionsAnswered || 0;
+                    this.questionPool = gameState.questionPool || [];
+                } else {
+                    this.newGame();
+                }
+                if (this.questionPool.length === 0) this.refillQuestionPool();
                 this.currentQuestion = null;
                 this.currentAnswer = null;
                 this.updateStats();
             }
             
+            newGame() {
+                this.player = {
+                    level: 1, strength: 10, intelligence: 10, gold: 0,
+                    armor: "cloth robe", weapon: "wooden staff", ownedItems: ["cloth robe", "wooden staff"]
+                };
+                this.questionsAnswered = 0;
+                this.questionPool = [];
+                this.refillQuestionPool();
+                this.saveGame();
+                this.updateStats();
+            }
+            
+            refillQuestionPool() {
+                this.questionPool = [];
+                Object.entries(this.prefixes).forEach(([prefix, definition]) => {
+                    this.questionPool.push({prefix, definition, type: "definition"});
+                    this.questionPool.push({prefix, definition, type: "prefix"});
+                });
+                this.shuffleArray(this.questionPool);
+                // Add extra randomization to prevent pattern recognition
+                if (Math.random() < 0.5) this.shuffleArray(this.questionPool);
+            }
+            
+            shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+            }
+            
             getGoldReward() {
-                return 10 + Math.floor(this.questionsAnswered / 10) * 5;
+                return 10 + Math.floor(this.questionsAnswered / 5) * 8;
             }
             
             updateStats() {
@@ -185,12 +242,15 @@
             }
             
             generateQuestion() {
-                const prefixEntries = Object.entries(this.prefixes);
-                const [prefix, definition] = prefixEntries[Math.floor(Math.random() * prefixEntries.length)];
-                const questionType = Math.random() < 0.5 ? "definition" : "prefix";
+                if (this.questionPool.length === 0) {
+                    this.refillQuestionPool();
+                }
+                
+                const questionData = this.questionPool.pop();
+                const {prefix, definition, type} = questionData;
                 this.questionsAnswered++;
                 
-                if (questionType === "definition") {
+                if (type === "definition") {
                     this.currentQuestion = `What does '${prefix}' mean?`;
                     this.currentAnswer = {answer: definition, type: "definition"};
                 } else {
@@ -207,7 +267,7 @@
                     <div class="input-area">
                         <input type="text" id="answer-input" placeholder="Your answer..." onkeypress="if(event.key==='Enter') game.submitAnswer()">
                         <button onclick="game.submitAnswer()">Submit</button>
-                        <button onclick="showShop()">Visit Shop</button>
+                        <button onclick="game.skipQuestion()">I Don't Know</button>
                     </div>
                 `;
                 document.getElementById('answer-input').focus();
@@ -242,6 +302,7 @@
                 }
                 
                 this.updateStats();
+                this.saveGame();
                 
                 document.getElementById('game-area').innerHTML = `
                     <div class="question-counter">--- Question ${this.questionsAnswered} ---</div>
@@ -250,7 +311,33 @@
                     ${resultText}
                     <div class="input-area">
                         <button onclick="game.nextQuestion()">Continue</button>
-                        <button onclick="showShop()">Visit Shop</button>
+                    </div>
+                `;
+                
+                if (this.questionsAnswered % 10 === 0) {
+                    setTimeout(() => this.offerBossFight(), 1000);
+                }
+            }
+            
+            skipQuestion() {
+                const {answer, type} = this.currentAnswer;
+                
+                let resultText;
+                if (type === "definition") {
+                    resultText = `<div class="incorrect">Skipped! The answer was: ${answer}</div>`;
+                } else {
+                    const validPrefixes = this.definitionsToPrefix[answer];
+                    resultText = `<div class="incorrect">Skipped! Valid answers: ${validPrefixes.join(', ')}</div>`;
+                }
+                
+                this.saveGame();
+                
+                document.getElementById('game-area').innerHTML = `
+                    <div class="question-counter">--- Question ${this.questionsAnswered} ---</div>
+                    <div>${this.currentQuestion}</div>
+                    ${resultText}
+                    <div class="input-area">
+                        <button onclick="game.nextQuestion()">Continue</button>
                     </div>
                 `;
                 
@@ -275,7 +362,7 @@
             }
             
             fightBoss() {
-                const bossPower = this.player.level * 25;
+                const bossPower = this.player.level * 20 + Math.floor(this.player.level / 3) * 10;
                 const playerPower = this.player.strength + this.player.intelligence;
                 
                 document.getElementById('game-area').innerHTML = `
@@ -295,6 +382,7 @@
                     this.player.level++;
                     this.player.gold += 50;
                     this.updateStats();
+                    this.saveGame();
                     document.getElementById('game-area').innerHTML = `
                         <div class="correct">⚔️ VICTORY! ⚔️</div>
                         <div>You defeated the boss!</div>
@@ -322,9 +410,11 @@
                 const nextTierLimit = maxAffordable + 100;
                 
                 let shopHTML = '<div>=== SHOP ===</div><br>';
+                let hasItems = false;
                 
                 Object.entries(this.shopItems).forEach(([item, stats]) => {
-                    if (stats.cost <= nextTierLimit) {
+                    if (stats.cost <= nextTierLimit && !this.player.ownedItems.includes(item)) {
+                        hasItems = true;
                         const affordable = stats.cost <= this.player.gold;
                         const symbol = affordable ? '✓' : '✗';
                         const className = affordable ? 'affordable' : 'unaffordable';
@@ -333,6 +423,10 @@
                         </div>`;
                     }
                 });
+                
+                if (!hasItems) {
+                    shopHTML += '<div>No new items available. You own everything in your price range!</div><br>';
+                }
                 
                 shopHTML += `<div class="input-area">
                     <button onclick="game.askQuestion()">Leave Shop</button>
@@ -347,6 +441,7 @@
                     this.player.gold -= item.cost;
                     this.player.strength += item.strength;
                     this.player.intelligence += item.intelligence;
+                    this.player.ownedItems.push(itemName);
                     
                     if (item.type === "armor") {
                         this.player.armor = itemName;
@@ -355,6 +450,7 @@
                     }
                     
                     this.updateStats();
+                    this.saveGame();
                     
                     document.getElementById('game-area').innerHTML = `
                         <div class="correct">Purchased ${itemName}!</div>
@@ -382,6 +478,34 @@
         
         function showShop() {
             game.showShop();
+        }
+        
+        function confirmNewGame() {
+            const btn = document.getElementById('new-game-btn');
+            if (btn.textContent === 'New Game') {
+                btn.textContent = 'Start a new game? This will reset all progress.';
+                btn.onclick = () => newGame();
+                setTimeout(() => {
+                    if (btn.textContent !== 'New Game') {
+                        btn.textContent = 'New Game';
+                        btn.onclick = () => confirmNewGame();
+                    }
+                }, 5000);
+            }
+        }
+        
+        function newGame() {
+            game.newGame();
+            document.getElementById('game-area').innerHTML = `
+                <div class="correct">🎮 NEW GAME STARTED! 🎮</div>
+                <div>All progress has been reset. Ready for a fresh adventure?</div>
+                <div class="input-area">
+                    <button onclick="startGame()">Start Playing</button>
+                </div>
+            `;
+            const btn = document.getElementById('new-game-btn');
+            btn.textContent = 'New Game';
+            btn.onclick = () => confirmNewGame();
         }
     </script>
 </body>
