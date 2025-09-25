@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prefix Quest</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background-color: #1a1a1a;
+            color: #00ff00;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .game-container {
+            max-width: 800px;
+            margin: 0 auto;
+            border: 2px solid #00ff00;
+            background-color: #000;
+            padding: 0;
+        }
+        
+        .game-header {
+            border-bottom: 2px solid #00ff00;
+            padding: 10px;
+            text-align: center;
+            background-color: #003300;
+        }
+        
+        .game-content {
+            display: flex;
+            min-height: 400px;
+        }
+        
+        .stats-panel {
+            width: 250px;
+            border-right: 2px solid #00ff00;
+            padding: 20px;
+            background-color: #001100;
+        }
+        
+        .main-panel {
+            flex: 1;
+            padding: 20px;
+        }
+        
+        .stats-title {
+            text-align: center;
+            margin-bottom: 15px;
+            color: #ffff00;
+        }
+        
+        .stat-line {
+            margin: 8px 0;
+        }
+        
+        .input-area {
+            margin-top: 20px;
+        }
+        
+        input[type="text"] {
+            background-color: #000;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 8px;
+            font-family: 'Courier New', monospace;
+            width: 200px;
+        }
+        
+        button {
+            background-color: #003300;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 8px 16px;
+            font-family: 'Courier New', monospace;
+            cursor: pointer;
+            margin: 5px;
+        }
+        
+        button:hover {
+            background-color: #005500;
+        }
+        
+        .shop-item {
+            margin: 5px 0;
+            padding: 5px;
+            cursor: pointer;
+        }
+        
+        .shop-item:hover {
+            background-color: #003300;
+        }
+        
+        .affordable {
+            color: #00ff00;
+        }
+        
+        .unaffordable {
+            color: #ff6666;
+        }
+        
+        .question-counter {
+            color: #ffff00;
+            margin-bottom: 10px;
+        }
+        
+        .correct {
+            color: #00ff00;
+        }
+        
+        .incorrect {
+            color: #ff6666;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-header">
+            <h1>🏰 PREFIX QUEST 🏰</h1>
+        </div>
+        
+        <div class="game-content">
+            <div class="stats-panel">
+                <div class="stats-title">=== PLAYER STATS ===</div>
+                <div class="stat-line">Level: <span id="level">1</span></div>
+                <div class="stat-line">Gold: <span id="gold">0</span></div>
+                <div class="stat-line">Strength: <span id="strength">10</span></div>
+                <div class="stat-line">Intelligence: <span id="intelligence">10</span></div>
+                <div class="stat-line">Armor: <span id="armor">cloth robe</span></div>
+                <div class="stat-line">Weapon: <span id="weapon">wooden staff</span></div>
+            </div>
+            
+            <div class="main-panel">
+                <div id="game-area">
+                    <div>Welcome to Prefix Quest!</div>
+                    <div>Answer questions correctly to earn gold and buy gear!</div>
+                    <br>
+                    <button onclick="startGame()">Start Game</button>
+                    <button onclick="showShop()">Visit Shop</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="prefixes.js"></script>
+    <script src="equipment.js"></script>
+    <script>
+        class PrefixGame {
+            constructor() {
+                this.prefixes = PREFIXES;
+                
+                this.definitionsToPrefix = {};
+                for (let prefix in this.prefixes) {
+                    let def = this.prefixes[prefix];
+                    if (!this.definitionsToPrefix[def]) this.definitionsToPrefix[def] = [];
+                    this.definitionsToPrefix[def].push(prefix);
+                }
+                
+                this.player = {
+                    level: 1, strength: 10, intelligence: 10, gold: 0,
+                    armor: "cloth robe", weapon: "wooden staff"
+                };
+                
+                this.shopItems = EQUIPMENT;
+                
+                this.questionsAnswered = 0;
+                this.currentQuestion = null;
+                this.currentAnswer = null;
+                this.updateStats();
+            }
+            
+            getGoldReward() {
+                return 10 + Math.floor(this.questionsAnswered / 10) * 5;
+            }
+            
+            updateStats() {
+                document.getElementById('level').textContent = this.player.level;
+                document.getElementById('gold').textContent = this.player.gold;
+                document.getElementById('strength').textContent = this.player.strength;
+                document.getElementById('intelligence').textContent = this.player.intelligence;
+                document.getElementById('armor').textContent = this.player.armor;
+                document.getElementById('weapon').textContent = this.player.weapon;
+            }
+            
+            generateQuestion() {
+                const prefixEntries = Object.entries(this.prefixes);
+                const [prefix, definition] = prefixEntries[Math.floor(Math.random() * prefixEntries.length)];
+                const questionType = Math.random() < 0.5 ? "definition" : "prefix";
+                this.questionsAnswered++;
+                
+                if (questionType === "definition") {
+                    this.currentQuestion = `What does '${prefix}' mean?`;
+                    this.currentAnswer = {answer: definition, type: "definition"};
+                } else {
+                    this.currentQuestion = `What prefix means '${definition}'?`;
+                    this.currentAnswer = {answer: definition, type: "prefix"};
+                }
+            }
+            
+            askQuestion() {
+                this.generateQuestion();
+                document.getElementById('game-area').innerHTML = `
+                    <div class="question-counter">--- Question ${this.questionsAnswered} ---</div>
+                    <div>${this.currentQuestion}</div>
+                    <div class="input-area">
+                        <input type="text" id="answer-input" placeholder="Your answer..." onkeypress="if(event.key==='Enter') game.submitAnswer()">
+                        <button onclick="game.submitAnswer()">Submit</button>
+                        <button onclick="showShop()">Visit Shop</button>
+                    </div>
+                `;
+                document.getElementById('answer-input').focus();
+            }
+            
+            submitAnswer() {
+                const userAnswer = document.getElementById('answer-input').value.trim().toLowerCase();
+                if (!userAnswer) return;
+                
+                let correct = false;
+                const {answer, type} = this.currentAnswer;
+                
+                if (type === "definition") {
+                    correct = answer.toLowerCase().includes(userAnswer) || userAnswer.includes(answer.toLowerCase());
+                } else {
+                    const validPrefixes = this.definitionsToPrefix[answer];
+                    correct = validPrefixes.includes(userAnswer);
+                }
+                
+                let resultText;
+                if (correct) {
+                    const goldReward = this.getGoldReward();
+                    this.player.gold += goldReward;
+                    resultText = `<div class="correct">✓ Correct! +${goldReward} gold</div>`;
+                } else {
+                    if (type === "definition") {
+                        resultText = `<div class="incorrect">✗ Wrong! The answer was: ${answer}</div>`;
+                    } else {
+                        const validPrefixes = this.definitionsToPrefix[answer];
+                        resultText = `<div class="incorrect">✗ Wrong! Valid answers: ${validPrefixes.join(', ')}</div>`;
+                    }
+                }
+                
+                this.updateStats();
+                
+                document.getElementById('game-area').innerHTML = `
+                    <div class="question-counter">--- Question ${this.questionsAnswered} ---</div>
+                    <div>${this.currentQuestion}</div>
+                    <div>Your answer: ${userAnswer}</div>
+                    ${resultText}
+                    <div class="input-area">
+                        <button onclick="game.nextQuestion()">Continue</button>
+                        <button onclick="showShop()">Visit Shop</button>
+                    </div>
+                `;
+                
+                if (this.questionsAnswered % 10 === 0) {
+                    setTimeout(() => this.offerBossFight(), 1000);
+                }
+            }
+            
+            nextQuestion() {
+                this.askQuestion();
+            }
+            
+            offerBossFight() {
+                document.getElementById('game-area').innerHTML = `
+                    <div>You've answered ${this.questionsAnswered} questions!</div>
+                    <div>Ready for a boss fight?</div>
+                    <div class="input-area">
+                        <button onclick="game.fightBoss()">Fight Boss</button>
+                        <button onclick="game.askQuestion()">Continue Questions</button>
+                    </div>
+                `;
+            }
+            
+            fightBoss() {
+                const bossPower = this.player.level * 25;
+                const playerPower = this.player.strength + this.player.intelligence;
+                
+                document.getElementById('game-area').innerHTML = `
+                    <div>=== BOSS FIGHT ===</div>
+                    <div>A Level ${this.player.level} boss appears!</div>
+                    <br>
+                    <div>Boss Power: ${bossPower}</div>
+                    <div>Your Power: ${playerPower}</div>
+                    <div class="input-area">
+                        <button onclick="game.resolveBattle(${bossPower}, ${playerPower})">Battle!</button>
+                    </div>
+                `;
+            }
+            
+            resolveBattle(bossPower, playerPower) {
+                if (playerPower >= bossPower) {
+                    this.player.level++;
+                    this.player.gold += 50;
+                    this.updateStats();
+                    document.getElementById('game-area').innerHTML = `
+                        <div class="correct">⚔️ VICTORY! ⚔️</div>
+                        <div>You defeated the boss!</div>
+                        <div>Level up! Now level ${this.player.level}</div>
+                        <div>+50 bonus gold!</div>
+                        <div class="input-area">
+                            <button onclick="game.askQuestion()">Continue</button>
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('game-area').innerHTML = `
+                        <div class="incorrect">💀 DEFEAT! 💀</div>
+                        <div>You need ${bossPower - playerPower} more power to win.</div>
+                        <div>Buy better gear and try again!</div>
+                        <div class="input-area">
+                            <button onclick="showShop()">Visit Shop</button>
+                            <button onclick="game.askQuestion()">Continue Questions</button>
+                        </div>
+                    `;
+                }
+            }
+            
+            showShop() {
+                const maxAffordable = this.player.gold;
+                const nextTierLimit = maxAffordable + 100;
+                
+                let shopHTML = '<div>=== SHOP ===</div><br>';
+                
+                Object.entries(this.shopItems).forEach(([item, stats]) => {
+                    if (stats.cost <= nextTierLimit) {
+                        const affordable = stats.cost <= this.player.gold;
+                        const symbol = affordable ? '✓' : '✗';
+                        const className = affordable ? 'affordable' : 'unaffordable';
+                        shopHTML += `<div class="shop-item ${className}" onclick="game.buyItem('${item}')">
+                            ${symbol} ${item}: ${stats.cost} gold (+${stats.strength} STR, +${stats.intelligence} INT)
+                        </div>`;
+                    }
+                });
+                
+                shopHTML += `<div class="input-area">
+                    <button onclick="game.askQuestion()">Leave Shop</button>
+                </div>`;
+                
+                document.getElementById('game-area').innerHTML = shopHTML;
+            }
+            
+            buyItem(itemName) {
+                const item = this.shopItems[itemName];
+                if (this.player.gold >= item.cost) {
+                    this.player.gold -= item.cost;
+                    this.player.strength += item.strength;
+                    this.player.intelligence += item.intelligence;
+                    
+                    if (item.type === "armor") {
+                        this.player.armor = itemName;
+                    } else {
+                        this.player.weapon = itemName;
+                    }
+                    
+                    this.updateStats();
+                    
+                    document.getElementById('game-area').innerHTML = `
+                        <div class="correct">Purchased ${itemName}!</div>
+                        <div class="input-area">
+                            <button onclick="game.showShop()">Continue Shopping</button>
+                            <button onclick="game.askQuestion()">Leave Shop</button>
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('game-area').innerHTML = `
+                        <div class="incorrect">Not enough gold! Need ${item.cost} gold.</div>
+                        <div class="input-area">
+                            <button onclick="game.showShop()">Back to Shop</button>
+                        </div>
+                    `;
+                }
+            }
+        }
+        
+        let game = new PrefixGame();
+        
+        function startGame() {
+            game.askQuestion();
+        }
+        
+        function showShop() {
+            game.showShop();
+        }
+    </script>
+</body>
+</html>
