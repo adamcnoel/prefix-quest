@@ -1,0 +1,16 @@
+{
+  "name": "Prefix Quest",
+  "short_name": "Prefix Quest",
+  "description": "A retro dungeon-style vocabulary game",
+  "start_url": "/prefix-quest/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#00FF00",
+  "icons": [
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
