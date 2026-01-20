@@ -113,3 +113,9 @@ button:hover {
     text-align: center;
     background-color: #003300;
 }
+
+.examples {
+    margin-top: 8px;
+    font-size: 0.9em;
+    color: #ffff00;
+}
