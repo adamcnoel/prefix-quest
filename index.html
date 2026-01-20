@@ -4,21 +4,20 @@
     <meta charset="UTF-8">
 
     <!-- iOS Home Screen Icon -->
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
     
     <!-- iOS PWA support -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     
     <!-- Link manifest for PWA -->
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="manifest.json">
     
     <!-- Viewport for proper scaling -->
     <meta name="viewport" content="width=device-width, initial-scale=1">
     
     <title>Prefix Quest</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 </head>
 <body>
     <div class="game-container">
@@ -58,34 +57,33 @@
     <script>
         class PrefixGame {
             constructor() {
-                // Enriched data: prefix -> { definition, examples: [...] }
-                this.prefixesWithDesc = (typeof PREFIXES_WITH_DESC !== 'undefined')
-                    ? PREFIXES_WITH_DESC
-                    : {};
-        
-                // Basic prefix -> definition map (derived from prefixesWithDesc)
-                this.prefixes = {};
-                this.definitionsToPrefix = {};
-        
-                for (const [prefix, info] of Object.entries(this.prefixesWithDesc)) {
-                    const def = info && typeof info.definition === 'string'
-                        ? info.definition.trim()
-                        : '';
-        
-                    // Skip any entries without a valid definition
-                    if (!def) continue;
-        
-                    this.prefixes[prefix] = def;
-        
-                    if (!this.definitionsToPrefix[def]) {
-                        this.definitionsToPrefix[def] = [];
-                    }
-                    this.definitionsToPrefix[def].push(prefix);
+
+            // Load enriched data
+            this.prefixesWithDesc = (typeof PREFIXES_WITH_DESC !== 'undefined')
+                ? PREFIXES_WITH_DESC
+                : {};
+
+            // Build basic prefix => definition map
+            this.prefixes = {};
+            this.definitionsToPrefix = {};
+
+            for (const [prefix, info] of Object.entries(this.prefixesWithDesc)) {
+                if (!info || typeof info.definition !== "string") continue;
+
+                const def = info.definition.trim();
+                if (!def) continue;
+
+                this.prefixes[prefix] = def;
+
+                if (!this.definitionsToPrefix[def]) {
+                    this.definitionsToPrefix[def] = [];
                 }
-                
-                this.shopItems = EQUIPMENT;
-                this.loadGame();
+                this.definitionsToPrefix[def].push(prefix);
             }
+
+            this.shopItems = EQUIPMENT;
+            this.loadGame();
+        }
 
             getExamplesForPrefix(prefix) {
                 const entry = this.prefixesWithDesc[prefix];
@@ -165,6 +163,9 @@
                 this.shuffleArray(this.questionPool);
                 // Add extra randomization to prevent pattern recognition
                 if (Math.random() < 0.5) this.shuffleArray(this.questionPool);
+
+                console.log("prefixes", this.prefixes);
+                console.log("questionPool", this.questionPool);
             }
             
             shuffleArray(array) {
