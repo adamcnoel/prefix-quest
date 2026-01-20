@@ -98,4 +98,5 @@ const PREFIXES_WITH_DESC = {
     amat : {
         definition: "love",
         examples: [ "amatory", "amateur", "amorous", "amiable", "amigo", "amour-propre", "amity" ]
+    }
 };
