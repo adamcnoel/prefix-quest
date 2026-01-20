@@ -1,4 +1,4 @@
-const PREFIXES = {
+const PREFIXES_WITH_DESC = {
     "vita" : [ "life", "vitamin; vitality; vital; revitalize; viable; vitalism; devitalize" ],
     "demo" : [ "people", "democracy; demography; undemocratic; democratize" ],
     "stereo" : [ "solid", "stereoscope; stereophonic; stereotype; stereopticon; stereotropism" ],
