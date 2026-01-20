@@ -58,7 +58,11 @@
     <script>
         class PrefixGame {
             constructor() {
-                this.prefixes = PREFIXES; // basic prefix -> definition map
+                // basic prefix -> definition map derived from enriched data
+                this.prefixes = {};
+                for (const [prefix, info] of Object.entries(PREFIXES_WITH_DESC)) {
+                    this.prefixes[prefix] = info.definition;
+                }
         
                 // enriched data: prefix -> { definition, examples: [...] }
                 this.prefixesWithDesc = (typeof PREFIXES_WITH_DESC !== 'undefined')
