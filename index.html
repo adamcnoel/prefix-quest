@@ -53,13 +53,18 @@
         </div>
     </div>
 
-    <script src="prefixes.js"></script>
+    <script src="prefixes-with-desc.js"></script>
     <script src="equipment.js"></script>
     <script>
         class PrefixGame {
             constructor() {
-                this.prefixes = PREFIXES;
-                
+                this.prefixes = PREFIXES; // basic prefix -> definition map
+        
+                // enriched data: prefix -> { definition, examples: [...] }
+                this.prefixesWithDesc = (typeof PREFIXES_WITH_DESC !== 'undefined')
+                    ? PREFIXES_WITH_DESC
+                    : {};
+        
                 this.definitionsToPrefix = {};
                 for (let prefix in this.prefixes) {
                     let def = this.prefixes[prefix];
@@ -69,6 +74,38 @@
                 
                 this.shopItems = EQUIPMENT;
                 this.loadGame();
+            }
+
+            getExamplesForPrefix(prefix) {
+                const entry = this.prefixesWithDesc[prefix];
+                if (!entry) return [];
+            
+                // Prefer an array property named "examples"
+                if (Array.isArray(entry.examples)) {
+                    return entry.examples;
+                }
+            
+                // Fallback if you happened to store a single example as "example"
+                if (entry.example) {
+                    return [entry.example];
+                }
+            
+                return [];
+            }
+
+            getExamplesForDefinition(definition) {
+                const prefixes = this.definitionsToPrefix[definition] || [];
+                const allExamples = [];
+            
+                prefixes.forEach(p => {
+                    this.getExamplesForPrefix(p).forEach(ex => {
+                        if (!allExamples.includes(ex)) {
+                            allExamples.push(ex);
+                        }
+                    });
+                });
+            
+                return allExamples;
             }
             
             saveGame() {
@@ -192,10 +229,18 @@
                     resultText = `<div class="correct">✓ Correct! +${goldReward} gold</div>`;
                 } else {
                     if (type === "definition") {
-                        resultText = `<div class="incorrect">✗ Wrong! The answer was: ${answer}</div>`;
+                        const examples = this.getExamplesForDefinition(answer);
+                        resultText = `<div class="incorrect">
+                            ✗ Wrong! The answer was: ${answer}
+                            ${examples.length ? `<div class="examples">Example words: ${examples.join(', ')}</div>` : ''}
+                        </div>`;
                     } else {
                         const validPrefixes = this.definitionsToPrefix[answer];
-                        resultText = `<div class="incorrect">✗ Wrong! Valid answers: ${validPrefixes.join(', ')}</div>`;
+                        const examples = this.getExamplesForPrefix(validPrefixes[0]);
+                        resultText = `<div class="incorrect">
+                            ✗ Wrong! Valid answers: ${validPrefixes.join(', ')}
+                            ${examples.length ? `<div class="examples">Example words: ${examples.join(', ')}</div>` : ''}
+                        </div>`;
                     }
                 }
                 
@@ -216,16 +261,25 @@
                     setTimeout(() => this.offerBossFight(), 1000);
                 }
             }
+
             
             skipQuestion() {
                 const {answer, type} = this.currentAnswer;
                 
                 let resultText;
                 if (type === "definition") {
-                    resultText = `<div class="incorrect">Skipped! The answer was: ${answer}</div>`;
+                    const examples = this.getExamplesForDefinition(answer);
+                    resultText = `<div class="incorrect">
+                        Skipped! The answer was: ${answer}
+                        ${examples.length ? `<div class="examples">Example words: ${examples.join(', ')}</div>` : ''}
+                    </div>`;
                 } else {
                     const validPrefixes = this.definitionsToPrefix[answer];
-                    resultText = `<div class="incorrect">Skipped! Valid answers: ${validPrefixes.join(', ')}</div>`;
+                    const examples = this.getExamplesForPrefix(validPrefixes[0]);
+                    resultText = `<div class="incorrect">
+                        Skipped! Valid answers: ${validPrefixes.join(', ')}
+                        ${examples.length ? `<div class="examples">Example words: ${examples.join(', ')}</div>` : ''}
+                    </div>`;
                 }
                 
                 this.saveGame();
@@ -243,6 +297,7 @@
                     setTimeout(() => this.offerBossFight(), 1000);
                 }
             }
+
             
             nextQuestion() {
                 this.askQuestion();
