@@ -1,102 +1,27 @@
 const PREFIXES_WITH_DESC = {
-    vita : {
-        definition: "life",
-        examples: [ "vitamin", "vitality", "vital", "revitalize", "viable", "vitalism", "devitalize" ],
-    },
-    demo : {
-        definition: "people",
-        examples: [ "democracy", "demography", "undemocratic", "democratize" ],
-    },
-    stereo : {
-        definition: "solid",
-        examples: [ "stereoscope", "stereophonic", "stereotype", "stereopticon", "stereotropism" ],
-    },
-    ism : {
-        definition: "doctrine",
-        examples: [ "Marxism", "capitalism", "Imagism", "Cubism", "nihilism", "pluralism", "tribalism" ],
-    },
-    cogn : {
-        definition: "know",
-        examples: [ "recognize", "cognizant", "incognito", "cognoscenti", "cognomen", "precognition" ],
-    },
-    sur : {
-        definition: "over",
-        examples: [ "surplus", "surpass", "surcharge", "surface", "surfeit", "surmount", "surname", "surtax" ],
-    },
-    alter : {
-        definition: "other",
-        examples: [ "alternator", "alteration", "alter ego", "alternative", "altruism", "altercation" ],
-    },
-    astr : {
-        definition: "star",
-        examples: [ "astronomy", "astrology", "asteroid", "disaster", "asterisk", "astrophysics", "astrolabe" ],
-    },
-    dyna : {
-        definition: "power",
-        examples: [ "dynamic", "dynamo", "dynamite", "dynasty", "dynamometer" ],
-    },
-    chron : {
-        definition: "time",
-        examples: [ "chronometer", "chronological", "synchronize", "chronic", "anachronism" ],
-    },
-    hyper : {
-        definition: "over",
-        examples: [ "hyperactive", "hyperventilate", "hyperbole", "hyperacidity", "hypertension" ],
-    },
-    luna : {
-        definition: "moon",
-        examples: [ "lunar", "lunatic", "lunate", "luna moth", "lunette", "sublunar", "lunular" ],
-    },
-    octa : {
-        definition: "eight",
-        examples: [ "octameter", "octagenarian", "octagon", "octarchy", "octave", "octopus", "octahedron" ],
-    },
-    gyro : {
-        definition: "turn",
-        examples: [ "gyration", "gyroscope", "gyre", "gyrate", "spirogyra", "gyromagnetic", "gyrocompass" ],
-    },
-    contra : {
-        definition: "against",
-        examples: [ "contradict", "contrary", "contrast", "contrapuntal", "contraband", "contravene" ],
-    },
-    geo : {
-        definition: "earth",
-        examples: [ "geography", "geothermal", "geology", "geophysics", "geometry", "geosynchronous" ],
-    },
-    helio : {
-        definition: "sun",
-        examples: [ "Helios", "heliotropic", "heliocentric", "heliograph", "perihelion", "aphelion" ],
-    },
-    thermo : {
-        definition: "heat",
-        examples: [ "thermostat", "thermos", "thermotropic", "thermonuclear", "thermocouple" ],
-    },
-    tetra : {
-        definition: "four",
-        examples: [ "tetrameter", "tetrahedron", "tetroxide", "tetragon", "tetrachloride", "tetracycline" ],
-    },
-    meter : {
-        definition: "measure",
-        examples: [ "thermometer", "millimeter", "octameter", "hydrometer", "odometer" ],
-    },
-    scope : {
-        definition: "look",
-        examples: [ "telescope", "microscope", "periscope", "radarscope", "horoscope", "electroscope" ],
-    },
-    son : {
-        definition: "sound",
-        examples: [ "sonar", "unison", "sonorous", "sonnet", "dissonance", "resonant", "supersonic" ],
-    },
-    dec : {
-        definition: "ten",
-        examples: [ "decade", "decaliter", "decimal", "decagon", "decathlon", "decimate", "dodecahedron" ],
-    },
-    stell : {
-        definition: "star",
-        examples: [ "interstellar", "stelliform", "stellar", "constellation", "stellate", "stellify" ],
-    },
-    amat : {
-        definition: "love",
-        examples: [ "amatory", "amateur", "amorous", "amiable", "amigo", "amour-propre", "amity" ]
-    }
+  germ: { definition: "vital or related", examples: ["germane","germinate","germicide","germinal","germ"] },
+  greg: { definition: "group", examples: ["gregarious","egregious","gregariously","segregate","congregate","aggregate"] },
+  mar: { definition: "sea", examples: ["marine","marina","ultramarine","maritime","mariner","marinate","submarine"] },
+  prim: { definition: "first", examples: ["prime","primary","primate","primogeniture","primeval","prima donna","primo"] },
+  pyro: { definition: "fire", examples: ["pyre","pyromania","pyrotechnic","pyrogenic","pyrophobia","pyrometer"] },
+  clam: { definition: "cry out", examples: ["clamorous","exclamation","clamor","exclamatory","clamant","declaim"] },
+  plu: { definition: "more", examples: ["plural","plurality","plus","pluralize","pluriaxial","pluralism","nonplussed"] },
+  tang: { definition: "touch", examples: ["tangible","tangent","tangle","tangential","cotangent","intangible"] },
+  string: { definition: "bind", examples: ["stringent","stringy","astringent","stringer"] },
+  liber: { definition: "free", examples: ["liberate","liberty","liberal","libertine","deliberate","libertarian"] },
+  junct: { definition: "join", examples: ["junction","conjunction","juncture","disjunct","injunction","adjunct"] },
+  clud: { definition: "close", examples: ["exclude","include","preclude","exclusive","occlude","conclude","cloister"] },
+  se: { definition: "apart", examples: ["secede","secret","sedition","seduce","segregate","select","separate"] },
+  trib: { definition: "pay", examples: ["tribute","tributary","retribution","contribution","attribute","diatribe","distribute"] },
+  dign: { definition: "worthy", examples: ["dignify","dignity","condign","dignitary","undignified","indignation"] },
+  luc: { definition: "light", examples: ["lucid","translucent","lucidity","pellucid","Lucifer","elucidate","lucent","lucubrate"] },
+  rupt: { definition: "break", examples: ["erupt","disrupt","rupture","corrupt","abrupt","incorruptible"] },
+  grat: { definition: "pleasing", examples: ["gratifying","gratitude","ingrate","grateful","gratuitous","ingratiate"] },
+  medi: { definition: "middle", examples: ["median","mediate","medium","mediocre","mediterranean","in medias res"] },
+  soph: { definition: "wisdom", examples: ["sophomore","sophisticated","sophist","philosophy","pansophy","theosophy"] },
+  curr: { definition: "run", examples: ["current","undercurrent","currently","recurrent","currency","incur"] },
+  tempor: { definition: "time", examples: ["temporal","contemporary","temporize","temporarily","tempus fugit"] },
+  migr: { definition: "wander", examples: ["migrate","transmigration","migrant","migratory","emigrant","immigrant"] },
+  trans: { definition: "across", examples: ["transfer","translate","transmit","transfusion","translucent","transcend"] },
+  gamy: { definition: "marriage", examples: ["monogamy","polygamy","bigamy","gamete","autogamous","exogamy"] }
 };
