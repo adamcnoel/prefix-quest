@@ -1,8 +1,8 @@
 {
-  "name": "Prefix Quest",
-  "short_name": "Prefix Quest",
-  "description": "A retro dungeon-style vocabulary game",
-  "start_url": "/prefix-quest/",
+  "name": "Etymancer's Quest",
+  "short_name": "Etymancer",
+  "description": "A retro dungeon-style game for mastering the Latin and Greek roots of words",
+  "start_url": "/etymancers-quest/",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#00FF00",
