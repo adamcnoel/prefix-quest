@@ -22,6 +22,13 @@ body {
     background-color: #003300;
 }
 
+.tagline {
+    margin-top: 6px;
+    font-size: 0.85em;
+    color: #ffff00;
+    letter-spacing: 1px;
+}
+
 .game-content {
     display: flex;
     min-height: 400px;
