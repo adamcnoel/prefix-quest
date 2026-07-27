@@ -16,13 +16,14 @@
     <!-- Viewport for proper scaling -->
     <meta name="viewport" content="width=device-width, initial-scale=1">
     
-    <title>Prefix Quest</title>
+    <title>Etymancer's Quest</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="game-container">
         <div class="game-header">
-            <h1>🏰 PREFIX QUEST 🏰</h1>
+            <h1>🧙 ETYMANCER'S QUEST 🧙</h1>
+            <div class="tagline">Master the roots of words</div>
         </div>
         
         <div class="game-content">
@@ -38,7 +39,7 @@
             
             <div class="main-panel">
                 <div id="game-area">
-                    <div>Welcome to Prefix Quest!</div>
+                    <div>Welcome, Etymancer!</div>
                     <div>Answer questions correctly to earn gold and buy gear!</div>
                     <br>
                     <button onclick="startGame()">Start Game</button>
@@ -52,41 +53,66 @@
         </div>
     </div>
 
-    <script src="prefixes-with-desc.js"></script>
+    <script src="roots.js"></script>
     <script src="equipment.js"></script>
     <script>
-        class PrefixGame {
+        class EtymancerGame {
             constructor() {
 
             // Load enriched data
-            this.prefixesWithDesc = (typeof PREFIXES_WITH_DESC !== 'undefined')
-                ? PREFIXES_WITH_DESC
+            this.rootsData = (typeof ROOTS !== 'undefined')
+                ? ROOTS
                 : {};
 
-            // Build basic prefix => definition map
-            this.prefixes = {};
-            this.definitionsToPrefix = {};
+            // Build basic root => definition map
+            this.roots = {};
+            this.definitionsToRoot = {};
 
-            for (const [prefix, info] of Object.entries(this.prefixesWithDesc)) {
+            for (const [root, info] of Object.entries(this.rootsData)) {
                 if (!info || typeof info.definition !== "string") continue;
 
                 const def = info.definition.trim();
                 if (!def) continue;
 
-                this.prefixes[prefix] = def;
+                this.roots[root] = def;
 
-                if (!this.definitionsToPrefix[def]) {
-                    this.definitionsToPrefix[def] = [];
+                if (!this.definitionsToRoot[def]) {
+                    this.definitionsToRoot[def] = [];
                 }
-                this.definitionsToPrefix[def].push(prefix);
+                this.definitionsToRoot[def].push(root);
             }
 
-            this.shopItems = EQUIPMENT;
+            this.shopItems = (typeof EQUIPMENT !== 'undefined') ? EQUIPMENT : {};
             this.loadGame();
         }
 
-            getExamplesForPrefix(prefix) {
-                const entry = this.prefixesWithDesc[prefix];
+            escapeHtml(text) {
+                return String(text)
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#39;");
+            }
+
+            isDefinitionMatch(userAnswer, definition) {
+                const guess = userAnswer.trim().toLowerCase();
+                if (!guess) return false;
+
+                const def = definition.trim().toLowerCase();
+                if (guess === def) return true;
+
+                // Accept an exact match on any significant word of the definition
+                // (e.g. "for" in "care for" is too short to count, but "care" does).
+                const stopwords = new Set(["a", "an", "the", "to", "of", "for", "or", "and"]);
+                return def
+                    .split(/[\s,/]+/)
+                    .filter(word => word.length >= 3 && !stopwords.has(word))
+                    .includes(guess);
+            }
+
+            getExamplesForRoot(root) {
+                const entry = this.rootsData[root];
                 if (!entry) return [];
             
                 // Prefer an array property named "examples"
@@ -103,11 +129,11 @@
             }
 
             getExamplesForDefinition(definition) {
-                const prefixes = this.definitionsToPrefix[definition] || [];
+                const roots = this.definitionsToRoot[definition] || [];
                 const allExamples = [];
-            
-                prefixes.forEach(p => {
-                    this.getExamplesForPrefix(p).forEach(ex => {
+
+                roots.forEach(p => {
+                    this.getExamplesForRoot(p).forEach(ex => {
                         if (!allExamples.includes(ex)) {
                             allExamples.push(ex);
                         }
@@ -123,11 +149,11 @@
                     questionsAnswered: this.questionsAnswered,
                     questionPool: this.questionPool
                 };
-                localStorage.setItem('prefixGameSave', JSON.stringify(gameState));
+                localStorage.setItem('etymancerSave', JSON.stringify(gameState));
             }
             
             loadGame() {
-                const saved = localStorage.getItem('prefixGameSave');
+                const saved = localStorage.getItem('etymancerSave');
                 if (saved) {
                     const gameState = JSON.parse(saved);
                     this.player = gameState.player;
@@ -156,16 +182,13 @@
             
             refillQuestionPool() {
                 this.questionPool = [];
-                Object.entries(this.prefixes).forEach(([prefix, definition]) => {
-                    this.questionPool.push({prefix, definition, type: "definition"});
-                    this.questionPool.push({prefix, definition, type: "prefix"});
+                Object.entries(this.roots).forEach(([root, definition]) => {
+                    this.questionPool.push({root, definition, type: "definition"});
+                    this.questionPool.push({root, definition, type: "root"});
                 });
                 this.shuffleArray(this.questionPool);
                 // Add extra randomization to prevent pattern recognition
                 if (Math.random() < 0.5) this.shuffleArray(this.questionPool);
-
-                console.log("prefixes", this.prefixes);
-                console.log("questionPool", this.questionPool);
             }
             
             shuffleArray(array) {
@@ -194,15 +217,15 @@
                 }
                 
                 const questionData = this.questionPool.pop();
-                const {prefix, definition, type} = questionData;
+                const {root, definition, type} = questionData;
                 this.questionsAnswered++;
-                
+
                 if (type === "definition") {
-                    this.currentQuestion = `What does '${prefix}' mean?`;
+                    this.currentQuestion = `What does '${root}' mean?`;
                     this.currentAnswer = {answer: definition, type: "definition"};
                 } else {
-                    this.currentQuestion = `What prefix means '${definition}'?`;
-                    this.currentAnswer = {answer: definition, type: "prefix"};
+                    this.currentQuestion = `What root means '${definition}'?`;
+                    this.currentAnswer = {answer: definition, type: "root"};
                 }
             }
             
@@ -228,10 +251,10 @@
                 const {answer, type} = this.currentAnswer;
                 
                 if (type === "definition") {
-                    correct = answer.toLowerCase().includes(userAnswer) || userAnswer.includes(answer.toLowerCase());
+                    correct = this.isDefinitionMatch(userAnswer, answer);
                 } else {
-                    const validPrefixes = this.definitionsToPrefix[answer];
-                    correct = validPrefixes.includes(userAnswer);
+                    const validRoots = this.definitionsToRoot[answer];
+                    correct = validRoots.includes(userAnswer);
                 }
                 
                 let resultText;
@@ -247,10 +270,10 @@
                             ${examples.length ? `<div class="examples">Example words: ${examples.join(', ')}</div>` : ''}
                         </div>`;
                     } else {
-                        const validPrefixes = this.definitionsToPrefix[answer];
-                        const examples = this.getExamplesForPrefix(validPrefixes[0]);
+                        const validRoots = this.definitionsToRoot[answer];
+                        const examples = this.getExamplesForRoot(validRoots[0]);
                         resultText = `<div class="incorrect">
-                            ✗ Wrong! Valid answers: ${validPrefixes.join(', ')}
+                            ✗ Wrong! Valid answers: ${validRoots.join(', ')}
                             ${examples.length ? `<div class="examples">Example words: ${examples.join(', ')}</div>` : ''}
                         </div>`;
                     }
@@ -262,7 +285,7 @@
                 document.getElementById('game-area').innerHTML = `
                     <div class="question-counter">--- Question ${this.questionsAnswered} ---</div>
                     <div>${this.currentQuestion}</div>
-                    <div>Your answer: ${userAnswer}</div>
+                    <div>Your answer: ${this.escapeHtml(userAnswer)}</div>
                     ${resultText}
                     <div class="input-area">
                         <button onclick="game.nextQuestion()">Continue</button>
@@ -286,10 +309,10 @@
                         ${examples.length ? `<div class="examples">Example words: ${examples.join(', ')}</div>` : ''}
                     </div>`;
                 } else {
-                    const validPrefixes = this.definitionsToPrefix[answer];
-                    const examples = this.getExamplesForPrefix(validPrefixes[0]);
+                    const validRoots = this.definitionsToRoot[answer];
+                    const examples = this.getExamplesForRoot(validRoots[0]);
                     resultText = `<div class="incorrect">
-                        Skipped! Valid answers: ${validPrefixes.join(', ')}
+                        Skipped! Valid answers: ${validRoots.join(', ')}
                         ${examples.length ? `<div class="examples">Example words: ${examples.join(', ')}</div>` : ''}
                     </div>`;
                 }
@@ -435,7 +458,7 @@
             }
         }
         
-        let game = new PrefixGame();
+        let game = new EtymancerGame();
         
         function startGame() {
             game.askQuestion();
