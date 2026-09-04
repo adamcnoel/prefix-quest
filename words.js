@@ -9,6 +9,8 @@
 // Meanings shared by several words should be written identically (e.g. "tired")
 // so that any of those words is accepted for the reverse question.
 const WORDS = {
+  con: ["with", "together"],
+  trans: ["across"],
   gress: ["step"],
   re: ["back again"],
   dolor: ["pain", "sorrow"],
