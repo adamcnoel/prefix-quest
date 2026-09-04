@@ -1,9 +1,12 @@
 # 🧙 Etymancer's Quest
 
-A retro, terminal-styled vocabulary RPG for mastering the Latin and Greek
-**roots** of English words. You play an *Etymancer* — a mage whose power comes
-from knowing where words come from. Name roots and their meanings to cast
-spells, earn gold and mana, buy arcane gear, and defeat bosses in spell duels.
+A retro, terminal-styled vocabulary RPG. You play an *Etymancer* — a mage whose
+power comes from knowing words and what they mean. Name words and their meanings
+to cast spells, earn gold and mana, buy arcane gear, and defeat bosses in spell
+duels.
+
+It ships with **two word lists** you can pick between: Greek/Latin **roots** for
+older players, and whole **vocabulary words** for younger ones.
 
 It's a single-page app with no build step and no dependencies — just open
 `index.html` in a browser. It also works as an installable PWA on iOS/desktop.
@@ -18,17 +21,40 @@ python3 -m http.server
 # then visit http://localhost:8000
 ```
 
-Progress is saved automatically to your browser's `localStorage` (under the key
-`etymancerSave`), so you can close the tab and pick up where you left off.
+Progress is saved automatically to your browser's `localStorage` (one key per
+word list: `etymancerSave:roots` and `etymancerSave:words`), so you can close the
+tab and pick up where you left off.
 
 ## How to play
 
+### Choosing a word list (difficulty level)
+
+On first launch — and any time via the **Word List** button in the footer — you
+pick which spellbook to study:
+
+| List | Level | Contents |
+|------|-------|----------|
+| **Roots & Affixes** (`roots.js`) | harder — 8th grade | Greek/Latin roots with one meaning each, plus example words. |
+| **Vocabulary Words** (`words.js`) | easier — 4th grade | Whole words, each with several possible meanings. |
+
+Each list keeps **its own** level, gold, gear and question pool, so two players
+can share a browser (or one player can switch between levels) without
+overwriting each other's progress. The active list is shown in the stats panel.
+
 ### Casting spells (the core loop)
 
-You're shown one of two kinds of question about a word root:
+You're shown one of two kinds of question, alternating evenly. With the roots
+list:
 
 - **"What does '`sed`' mean?"** — type the meaning (e.g. `sit`).
 - **"What root means '`sit`'?"** — type the root (e.g. `sed`).
+
+With the vocabulary-words list:
+
+- **"What is the definition of '`acrimonious`'?"** — type **any one** of its
+  meanings (`bitter`, `angry` or `mean-spirited` all count).
+- **"What word means '`bitter`'?"** — type the word (`acrimonious`). The meaning
+  used in the prompt is picked at random from that word's list.
 
 Type your answer (your "incantation") and press **Cast** (or Enter). If you
 don't know it, press **Fizzle** to give up and reveal the answer.
@@ -39,7 +65,9 @@ don't know it, press **Fizzle** to give up and reveal the answer.
   words are shown so you can learn it, and your streak resets to 0.
 
 Answer matching is forgiving: for meanings, you can type the full definition or
-any significant word in it (so "care" is accepted for "care for").
+any significant word in it (so "care" is accepted for "care for"), and anything
+in parentheses is context for the reader only — "mean-spirited (dialogue)" is
+answered by typing just `mean-spirited`.
 
 ### Streaks & combos
 
@@ -72,15 +100,25 @@ Your Etymancer panel tracks:
   a maximum (starts at 30).
 - **Streak** — current run of correct casts (drives the combo multiplier).
 - **Intelligence / Strength** — raised by gear; together they determine your
-  spell damage in duels.
-- **Robes / Staff** — your currently equipped armor and weapon.
+  spell damage in duels, and Strength also adds duel HP.
+- **Robes / Staff** — your currently equipped armor and weapon. INT and STR are
+  always exactly your base 10 plus these two items.
 
 ### The Arcane Emporium (shop)
 
 Spend gold on **robes** (armor) and **staves** (weapons) to raise your
-Intelligence and Strength. The shop only shows gear near your current budget
-that you don't already own, revealing stronger items as you get richer. Better
-gear means harder-hitting spells in duels.
+Intelligence and Strength. A purchase is **equipped immediately and replaces**
+whatever was in that slot — the old item moves to **your vault**, where it can
+be re-equipped for free at any time. Each listing shows the change to *your*
+stats, so a cheap item that would be a downgrade is easy to spot.
+
+The shop shows gear near your current budget that you don't already own, and
+gear is also **gated by level**: the strongest items stay locked until you've won
+enough duels, so gold can't buy the whole catalog in your first ten spells.
+
+Gold also buys **mana crystals**, which permanently raise your maximum mana by
+10 (up to a per-level cap). Each one costs more than the last, so gold always has
+somewhere to go — and a bigger mana pool means more Channels per duel.
 
 ### Spell duels (boss fights)
 
@@ -89,37 +127,86 @@ Etymophage…) scaled to your level. You can **Begin Duel** or **Flee** back to
 casting.
 
 A duel is a turn-by-turn magic battle. Both you and the boss have an **HP bar**,
-and each turn shows exactly how much damage your next spell will deal (e.g.
-*"24 = 22 base (INT+STR) + 2 streak"*):
+and each turn spells out exactly how much damage your next spell will deal — the
+full sum, every term shown (e.g. *"24 = 22 base (INT+STR) + 2 streak"*):
 
-- Each exchange is a root question. **Answer correctly** to strike the boss;
+- Each exchange is a word question. **Answer correctly** to strike the boss;
   spell damage scales with your **Intelligence + Strength**, plus a bonus for
   consecutive correct answers within the duel.
 - **Answer wrong** and your spell fizzles — the boss strikes *you* instead.
 - **Cast** vs **Channel**: both buttons cast the *same answer* you typed. **Cast**
-  is a normal hit; **Channel** spends **10 mana to deal double damage**. It's the
-  payoff for all the mana you've banked while casting — but it's a gamble, since
-  a channeled spell that misses spends the mana anyway.
+  is a normal hit; **Channel** spends **10 mana to double the whole number
+  shown**. It's the payoff for all the mana you've banked while casting — but
+  it's a gamble, since a channeled spell that misses spends the mana anyway (the
+  game says so when it happens).
+- Tick **"Channel when I press Enter"** to channel from the keyboard; the choice
+  sticks for the rest of the duel. Without it, Enter always casts normally.
 
-Reduce the boss's HP to zero to **win**: you level up, earn bonus gold, and get
-a **full mana refill**. If your HP hits zero you're **defeated** — but you keep
-all your progress, so you can grind gold, upgrade your gear, and try again.
+Duel exchanges don't count toward the every-10-spells boss timer, so a long duel
+never queues up the next boss.
 
-## Roots included
+Reduce the boss's HP to zero to **win**: you level up, earn bonus gold, get a
+**full mana refill**, and keep your casting streak. If your HP hits zero you're
+**defeated** — but you keep all your progress, so you can grind gold, upgrade
+your gear, and try again.
 
-The word roots and their example words live in `roots.js`. Each entry maps a
-root to its `definition` and a list of `examples`. To add or edit roots, just
-extend that file — the game builds its entire question pool from it
-automatically. Gear lives in `equipment.js` in the same spirit.
+## Editing the word lists
+
+Both lists are plain JS objects you can extend freely — the game rebuilds its
+entire question pool from whichever list is active.
+
+`roots.js` maps a root to one `definition` plus `examples`:
+
+```js
+const ROOTS = {
+  path: { definition: "feeling", examples: ["sympathy", "empathy", "apathy"] }
+};
+```
+
+`words.js` maps a word to an array of acceptable meanings (no examples):
+
+```js
+const WORDS = {
+  acrimonious: ["bitter", "angry", "mean-spirited (dialogue)"]
+};
+```
+
+Two notes on `words.js`: parentheses hold context that's ignored when matching,
+and meanings shared by several words should be written *identically* (e.g.
+`"tired"` for both `drowsy` and `weary`) so any of them is accepted for the
+"What word means …?" question.
+
+To add a third list, register it in the `WORD_SETS` map at the top of the script
+block in `index.html`: a display name, a `grade` and `blurb` for the picker, a
+`termLabel` (the singular noun for one entry — the rest of the UI pluralizes it),
+a `definePrompt`, and its data. The map key becomes the list's id and its
+`localStorage` key. Gear lives in `equipment.js` in the same spirit.
 
 ## Project structure
 
 | File | Purpose |
 |------|---------|
-| `index.html` | Layout + the entire `EtymancerGame` class (game logic). |
-| `roots.js` | The word-root data (`ROOTS`): definitions and example words. |
+| `index.html` | Layout, the `WORD_SETS` registry, and the entire `EtymancerGame` class. |
+| `roots.js` | Harder list (`ROOTS`): word roots, one definition each, plus example words. |
+| `words.js` | Easier list (`WORDS`): whole words, each with several meanings. |
 | `equipment.js` | The shop catalog (`EQUIPMENT`): robes and staves with stats. |
 | `style.css` | The green-on-black terminal theme. |
 | `manifest.json` | PWA metadata (name, icons, theme). |
 | `favicon.svg` | Scalable browser-tab icon (green terminal "E"). |
 | `apple-touch-icon.png` | Home-screen icon for iOS. |
+| `tests/playthrough.js` | Node harness that plays a full session and checks the rules and the progression math. |
+
+## Tests
+
+`tests/playthrough.js` loads the real script out of `index.html` against small
+DOM/`localStorage` stubs and plays a whole session: casting right, wrong and
+fizzled answers on both lists, the How to Play screen, the Emporium (buying,
+equipping, refusals, mana crystals), full duels with Cast and Channel, win and
+loss, older saves, and a printed progression table.
+
+```bash
+node tests/playthrough.js
+```
+
+It prints `RESULT: N checks passed, 0 failed` when the game is behaving, plus the
+duel-damage and level-by-level progression tables for eyeballing balance changes.

@@ -34,6 +34,7 @@
         <div class="game-content">
             <div class="stats-panel">
                 <div class="stats-title">=== ETYMANCER ===</div>
+                <div class="stat-line">Word list: <span id="word-set">—</span></div>
                 <div class="stat-line">Level: <span id="level">1</span></div>
                 <div class="stat-line">Gold: <span id="gold">0</span></div>
                 <div class="stat-line">Mana: <span id="mana">0</span> / <span id="max-mana">30</span></div>
@@ -47,8 +48,7 @@
             <div class="main-panel">
                 <div id="game-area">
                     <div>Welcome, Etymancer!</div>
-                    <p>Every root you know fuels your magic. Cast spells by naming roots and their meanings to earn gold and mana, then channel that power to defeat bosses in spell duels.</p>
-                    <button onclick="startGame()">Begin Casting</button>
+                    <p>Loading your spellbook…</p>
                 </div>
             </div>
         </div>
@@ -56,42 +56,147 @@
         <div class="game-footer">
             <button onclick="game.showHelp()">How to Play</button>
             <button onclick="showShop()">Arcane Emporium</button>
+            <button onclick="game.showWordSetPicker()">Word List</button>
             <button onclick="confirmNewGame()" id="new-game-btn">New Game</button>
         </div>
     </div>
 
     <script src="roots.js"></script>
+    <script src="words.js"></script>
     <script src="equipment.js"></script>
     <script>
-        class EtymancerGame {
-            constructor() {
+        // Remembers which word list was played last.
+        const ACTIVE_SET_KEY = 'etymancerWordSet';
 
-            // Load enriched data
-            this.rootsData = (typeof ROOTS !== 'undefined')
-                ? ROOTS
-                : {};
+        // Definition words too common to accept on their own as an answer.
+        const STOPWORDS = new Set(["a", "an", "the", "to", "of", "for", "or", "and",
+                                   "in", "on", "at", "is", "it", "its", "out", "very",
+                                   "too", "than", "from", "you", "your", "that"]);
 
-            // Build basic root => definition map
-            this.roots = {};
-            this.definitionsToRoot = {};
+        // The selectable word lists ("levels"). Each one names its data, how it
+        // words the "define this" question, and what it calls a term; the game
+        // logic itself is list-agnostic.
+        const WORD_SETS = {
+            roots: {
+                name: "Roots & Affixes",
+                grade: "harder — 8th grade",
+                blurb: "Greek and Latin roots, prefixes and suffixes, with example words.",
+                termLabel: "root",
+                definePrompt: term => `What does '${term}' mean?`,
+                rawData: ROOTS
+            },
+            words: {
+                name: "Vocabulary Words",
+                grade: "easier — 4th grade",
+                blurb: "Whole words with several possible meanings — any one of them counts.",
+                termLabel: "word",
+                definePrompt: term => `What is the definition of '${term}'?`,
+                rawData: WORDS
+            }
+        };
 
-            for (const [root, info] of Object.entries(this.rootsData)) {
-                if (!info || typeof info.definition !== "string") continue;
+        // Both list shapes collapse to {term: {definitions: [...], examples: [...]}}:
+        //   roots.js  -> {definition: "feeling", examples: [...]}
+        //   words.js  -> ["bitter", "angry", ...]
+        function normalizeWordList(raw) {
+            const terms = {};
 
-                const def = info.definition.trim();
-                if (!def) continue;
+            for (const [term, info] of Object.entries(raw)) {
+                const isMeaningList = Array.isArray(info);
+                const definitions = (isMeaningList ? info : [info.definition])
+                    .filter(def => typeof def === "string" && def.trim())
+                    .map(def => def.trim());
 
-                this.roots[root] = def;
-
-                if (!this.definitionsToRoot[def]) {
-                    this.definitionsToRoot[def] = [];
-                }
-                this.definitionsToRoot[def].push(root);
+                if (!definitions.length) continue;
+                terms[term] = {
+                    definitions,
+                    examples: isMeaningList ? [] : (info.examples || [])
+                };
             }
 
-            this.shopItems = (typeof EQUIPMENT !== 'undefined') ? EQUIPMENT : {};
-            this.loadGame();
+            return terms;
         }
+
+        // Each list is normalized once here, and its key doubles as its id.
+        Object.entries(WORD_SETS).forEach(([id, set]) => {
+            set.id = id;
+            set.terms = normalizeWordList(set.rawData);
+        });
+
+        // Parenthetical context is for the reader only — "mean-spirited (dialogue)"
+        // is answered by typing "mean-spirited".
+        function stripContext(text) {
+            return String(text).replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
+        }
+
+        function definitionKey(definition) {
+            return stripContext(definition).toLowerCase();
+        }
+
+        // One-time upgrade: saves written before word lists existed were all
+        // roots games, so move that save under the roots list's own key.
+        function migrateLegacySave() {
+            const legacy = localStorage.getItem('etymancerSave');
+            if (legacy && !localStorage.getItem('etymancerSave:roots')) {
+                localStorage.setItem('etymancerSave:roots', legacy);
+            }
+            if (legacy) localStorage.removeItem('etymancerSave');
+        }
+
+        const STARTING_ARMOR = "cloth robe";
+        const STARTING_WEAPON = "wooden staff";
+        const BASE_STAT = 10;
+        const BASE_MAX_MANA = 30;
+
+        // Stats an item grants, or zeroes for anything the catalog doesn't know.
+        function gearStats(itemName) {
+            const item = (typeof EQUIPMENT !== 'undefined') ? EQUIPMENT[itemName] : null;
+            return {
+                strength: item ? item.strength : 0,
+                intelligence: item ? item.intelligence : 0
+            };
+        }
+
+        function defaultPlayer() {
+            // Starting gear is equipped, so its stats count from the first spell.
+            const armor = gearStats(STARTING_ARMOR);
+            const weapon = gearStats(STARTING_WEAPON);
+            return {
+                level: 1,
+                strength: BASE_STAT + armor.strength + weapon.strength,
+                intelligence: BASE_STAT + armor.intelligence + weapon.intelligence,
+                gold: 0,
+                mana: 0, maxMana: BASE_MAX_MANA, streak: 0,
+                armor: STARTING_ARMOR, weapon: STARTING_WEAPON,
+                ownedItems: [STARTING_ARMOR, STARTING_WEAPON]
+            };
+        }
+
+        class EtymancerGame {
+            constructor() {
+                this.shopItems = (typeof EQUIPMENT !== 'undefined') ? EQUIPMENT : {};
+                this.wordSet = null;
+                this.terms = {};
+                this.player = null;
+
+                const remembered = localStorage.getItem(ACTIVE_SET_KEY);
+                if (WORD_SETS[remembered]) {
+                    this.activateWordSet(remembered);
+                } else {
+                    this.updateStats();
+                }
+            }
+
+            // Switch to a word list: remember it and load its own saved progress.
+            activateWordSet(setId) {
+                const set = WORD_SETS[setId];
+                if (!set) return;
+
+                this.wordSet = set;
+                this.terms = set.terms;
+                localStorage.setItem(ACTIVE_SET_KEY, setId);
+                this.loadGame();
+            }
 
             escapeHtml(text) {
                 return String(text)
@@ -103,88 +208,99 @@
             }
 
             isDefinitionMatch(userAnswer, definition) {
-                const guess = userAnswer.trim().toLowerCase();
+                const guess = definitionKey(userAnswer);
                 if (!guess) return false;
 
-                const def = definition.trim().toLowerCase();
+                const def = definitionKey(definition);
                 if (guess === def) return true;
 
                 // Accept an exact match on any significant word of the definition
                 // (e.g. "for" in "care for" is too short to count, but "care" does).
-                const stopwords = new Set(["a", "an", "the", "to", "of", "for", "or", "and"]);
                 return def
                     .split(/[\s,/]+/)
-                    .filter(word => word.length >= 3 && !stopwords.has(word))
+                    .filter(word => word.length >= 3 && !STOPWORDS.has(word))
                     .includes(guess);
             }
 
-            getExamplesForRoot(root) {
-                const entry = this.rootsData[root];
-                if (!entry) return [];
-            
-                // Prefer an array property named "examples"
-                if (Array.isArray(entry.examples)) {
-                    return entry.examples;
-                }
-            
-                // Fallback if you happened to store a single example as "example"
-                if (entry.example) {
-                    return [entry.example];
-                }
-            
-                return [];
+            // Every meaning the current list gives for a term.
+            getDefinitionsForTerm(term) {
+                const entry = this.terms[term];
+                return entry ? entry.definitions : [];
+            }
+
+            getExamplesForTerm(term) {
+                const entry = this.terms[term];
+                return entry ? entry.examples : [];
+            }
+
+            // Every term in the current list that can mean this definition —
+            // "tired" is answered by both 'drowsy' and 'weary'.
+            getTermsForDefinition(definition) {
+                const key = definitionKey(definition);
+                return Object.keys(this.terms).filter(term =>
+                    this.getDefinitionsForTerm(term).some(def => definitionKey(def) === key));
             }
 
             getExamplesForDefinition(definition) {
-                const roots = this.definitionsToRoot[definition] || [];
-                const allExamples = [];
-
-                roots.forEach(p => {
-                    this.getExamplesForRoot(p).forEach(ex => {
-                        if (!allExamples.includes(ex)) {
-                            allExamples.push(ex);
-                        }
-                    });
-                });
-            
-                return allExamples;
+                return [...new Set(
+                    this.getTermsForDefinition(definition)
+                        .flatMap(term => this.getExamplesForTerm(term))
+                )];
             }
-            
+
+            // Each word list keeps its own progress, so two players can share
+            // the browser without overwriting each other.
+            saveKey() {
+                return `etymancerSave:${this.wordSet.id}`;
+            }
+
             saveGame() {
                 const gameState = {
                     player: this.player,
                     questionsAnswered: this.questionsAnswered,
                     questionPool: this.questionPool
                 };
-                localStorage.setItem('etymancerSave', JSON.stringify(gameState));
+                localStorage.setItem(this.saveKey(), JSON.stringify(gameState));
             }
-            
+
             loadGame() {
-                const saved = localStorage.getItem('etymancerSave');
+                const saved = localStorage.getItem(this.saveKey());
                 if (saved) {
                     const gameState = JSON.parse(saved);
-                    this.player = gameState.player;
+                    // The spread backfills any stat added since this save was written.
+                    this.player = {...defaultPlayer(), ...gameState.player};
+                    this.normalizeGearStats();
                     this.questionsAnswered = gameState.questionsAnswered || 0;
-                    this.questionPool = gameState.questionPool || [];
-                    // Backfill fields added after this save was written.
-                    if (typeof this.player.mana !== "number") this.player.mana = 0;
-                    if (typeof this.player.maxMana !== "number") this.player.maxMana = 30;
-                    if (typeof this.player.streak !== "number") this.player.streak = 0;
+                    this.questionPool = (gameState.questionPool || [])
+                        // Older saves named the term "root" and its question type "root".
+                        .map(q => ({
+                            term: q.term || q.root,
+                            type: q.type === "definition" ? "definition" : "term"
+                        }))
+                        // Drop entries for terms the list no longer contains.
+                        .filter(q => this.terms[q.term]);
                 } else {
                     this.newGame();
                 }
                 if (this.questionPool.length === 0) this.refillQuestionPool();
                 this.currentQuestion = null;
                 this.currentAnswer = null;
+                this.duel = null;
                 this.updateStats();
             }
-            
+
+            // INT and STR are exactly the base plus the two equipped items.
+            // Saves written before equipping replaced gear had every purchase
+            // ever made stacked on top, which inflated both stats.
+            normalizeGearStats() {
+                const armor = gearStats(this.player.armor);
+                const weapon = gearStats(this.player.weapon);
+                this.player.strength = BASE_STAT + armor.strength + weapon.strength;
+                this.player.intelligence = BASE_STAT + armor.intelligence + weapon.intelligence;
+            }
+
             newGame() {
-                this.player = {
-                    level: 1, strength: 10, intelligence: 10, gold: 0,
-                    mana: 0, maxMana: 30, streak: 0,
-                    armor: "cloth robe", weapon: "wooden staff", ownedItems: ["cloth robe", "wooden staff"]
-                };
+                this.player = defaultPlayer();
                 this.questionsAnswered = 0;
                 this.questionPool = [];
                 this.refillQuestionPool();
@@ -194,13 +310,14 @@
             
             refillQuestionPool() {
                 this.questionPool = [];
-                Object.entries(this.roots).forEach(([root, definition]) => {
-                    this.questionPool.push({root, definition, type: "definition"});
-                    this.questionPool.push({root, definition, type: "root"});
+                Object.keys(this.terms).forEach(term => {
+                    // One of each question pattern per term, so the two
+                    // alternate evenly. Which meaning the "term" pattern asks
+                    // about is picked at random when the question is shown.
+                    this.questionPool.push({term, type: "definition"});
+                    this.questionPool.push({term, type: "term"});
                 });
                 this.shuffleArray(this.questionPool);
-                // Add extra randomization to prevent pattern recognition
-                if (Math.random() < 0.5) this.shuffleArray(this.questionPool);
             }
             
             shuffleArray(array) {
@@ -244,12 +361,49 @@
             // Evaluate a raw user answer against the current question.
             // Returns true if correct. Shared by casting and dueling.
             evaluateAnswer(userAnswer) {
-                const {answer, type} = this.currentAnswer;
+                const {type, term, definition} = this.currentAnswer;
                 if (type === "definition") {
-                    return this.isDefinitionMatch(userAnswer, answer);
+                    // Any one of the term's meanings counts.
+                    return this.getDefinitionsForTerm(term)
+                        .some(def => this.isDefinitionMatch(userAnswer, def));
                 }
-                const validRoots = this.definitionsToRoot[answer] || [];
-                return validRoots.includes(userAnswer);
+                return this.getTermsForDefinition(definition)
+                    .includes(userAnswer.trim().toLowerCase());
+            }
+
+            // What to reveal after a wrong answer or a fizzle: the answer itself
+            // plus any example words for it.
+            revealAnswer() {
+                const {type, term, definition} = this.currentAnswer;
+                const label = this.wordSet.termLabel;
+
+                if (type === "definition") {
+                    const definitions = this.getDefinitionsForTerm(term);
+                    return {
+                        headline: definitions.length > 1
+                            ? `'${term}' can mean: ${definitions.join('; ')}`
+                            : `The ${label} meant: ${definitions[0]}`,
+                        examples: this.getExamplesForTerm(term)
+                    };
+                }
+
+                const terms = this.getTermsForDefinition(definition);
+                return {
+                    headline: terms.length > 1
+                        ? `Valid ${label}s: ${terms.join(', ')}`
+                        : `The ${label} was: ${terms[0]}`,
+                    examples: this.getExamplesForDefinition(definition)
+                };
+            }
+
+            // The reveal as it appears on a casting screen. `lead` opens the
+            // line, e.g. "Your spell fizzles!" vs "Spell released.".
+            renderReveal(lead) {
+                const {headline, examples} = this.revealAnswer();
+                return `<div class="incorrect">
+                    ${lead} ${headline}
+                    ${examples.length ? `<div class="examples">Example words: ${examples.join(', ')}</div>` : ''}
+                </div>`;
             }
 
             // Build a simple text HP/mana bar out of block characters.
@@ -261,6 +415,9 @@
             }
             
             updateStats() {
+                document.getElementById('word-set').textContent =
+                    this.wordSet ? this.wordSet.name : '—';
+                if (!this.player) return;
                 document.getElementById('level').textContent = this.player.level;
                 document.getElementById('gold').textContent = this.player.gold;
                 document.getElementById('mana').textContent = this.player.mana;
@@ -277,21 +434,74 @@
                     this.refillQuestionPool();
                 }
                 
-                const questionData = this.questionPool.pop();
-                const {root, definition, type} = questionData;
-                this.questionsAnswered++;
+                const {term, type} = this.questionPool.pop();
 
                 if (type === "definition") {
-                    this.currentQuestion = `What does '${root}' mean?`;
-                    this.currentAnswer = {answer: definition, type: "definition"};
+                    this.currentQuestion = this.wordSet.definePrompt(term);
+                    this.currentAnswer = {type: "definition", term};
                 } else {
-                    this.currentQuestion = `What root means '${definition}'?`;
-                    this.currentAnswer = {answer: definition, type: "root"};
+                    // Which meaning gets asked about is re-rolled each time the
+                    // term comes up, so a word with several meanings varies.
+                    const definitions = this.getDefinitionsForTerm(term);
+                    const definition = definitions[
+                        Math.floor(Math.random() * definitions.length)
+                    ];
+                    this.currentQuestion = `What ${this.wordSet.termLabel} means '${definition}'?`;
+                    this.currentAnswer = {type: "term", term, definition};
                 }
             }
             
+            // The opening screen: pick a word list, or greet a returning player.
+            showStart() {
+                if (!this.wordSet) return this.showWordSetPicker();
+
+                const set = this.wordSet;
+                document.getElementById('game-area').innerHTML = `
+                    <div>Welcome back, Etymancer!</div>
+                    <p>Every ${set.termLabel} you know fuels your magic. Cast spells by naming
+                    ${set.termLabel}s and their meanings to earn gold and mana, then channel
+                    that power to defeat bosses in spell duels.</p>
+                    <div class="examples">Word list: ${set.name} (${set.grade}) — level ${this.player.level}, ${this.player.gold} gold.</div>
+                    <div class="input-area">
+                        <button onclick="game.askQuestion()">Begin Casting</button>
+                        <button onclick="game.showWordSetPicker()">Change Word List</button>
+                    </div>
+                `;
+            }
+
+            // Each list is a difficulty level with its own saved progress.
+            showWordSetPicker() {
+                const cards = Object.values(WORD_SETS).map(set => {
+                    const active = set === this.wordSet;
+                    const count = Object.keys(set.terms).length;
+                    return `<div class="shop-item" onclick="game.chooseWordSet('${set.id}')">
+                        ${active ? '★' : '▸'} ${set.name} — ${set.grade}${active ? ' (playing now)' : ''}
+                        <div class="examples">${set.blurb} ${count} ${set.termLabel}s.</div>
+                    </div>`;
+                }).join('');
+
+                document.getElementById('game-area').innerHTML = `
+                    <div>=== CHOOSE YOUR SPELLBOOK ===</div>
+                    <div>Which words do you want to study?</div>
+                    <br>
+                    ${cards}
+                    <div class="examples">Each spellbook keeps its own level, gold and gear, so you can switch back and forth without losing progress.</div>
+                    ${this.wordSet ? `<div class="input-area"><button onclick="game.askQuestion()">Keep Casting</button></div>` : ''}
+                `;
+            }
+
+            chooseWordSet(setId) {
+                if (!WORD_SETS[setId]) return;
+                this.activateWordSet(setId);
+                this.showStart();
+            }
+
             askQuestion() {
+                if (!this.wordSet) return this.showWordSetPicker();
                 this.generateQuestion();
+                // Only casting counts toward the spell tally: duel exchanges
+                // shouldn't inflate the gold ramp or queue another boss.
+                this.questionsAnswered++;
                 const comboBanner = this.player.streak >= 2
                     ? `<div class="combo">🔥 Combo x${this.getComboMultiplier()} (streak ${this.player.streak}) — earning ${this.getComboMultiplier()}× gold &amp; mana!</div>`
                     : '';
@@ -312,16 +522,8 @@
                 const userAnswer = document.getElementById('answer-input').value.trim().toLowerCase();
                 if (!userAnswer) return;
                 
-                let correct = false;
-                const {answer, type} = this.currentAnswer;
-                
-                if (type === "definition") {
-                    correct = this.isDefinitionMatch(userAnswer, answer);
-                } else {
-                    const validRoots = this.definitionsToRoot[answer];
-                    correct = validRoots.includes(userAnswer);
-                }
-                
+                const correct = this.evaluateAnswer(userAnswer);
+
                 let resultText;
                 if (correct) {
                     const cast = this.registerCast();
@@ -334,79 +536,39 @@
                     }
                 } else {
                     this.registerFizzle();
-                    if (type === "definition") {
-                        const examples = this.getExamplesForDefinition(answer);
-                        resultText = `<div class="incorrect">
-                            💨 Your spell fizzles! The root meant: ${answer}
-                            ${examples.length ? `<div class="examples">Example words: ${examples.join(', ')}</div>` : ''}
-                        </div>`;
-                    } else {
-                        const validRoots = this.definitionsToRoot[answer];
-                        const examples = this.getExamplesForRoot(validRoots[0]);
-                        resultText = `<div class="incorrect">
-                            💨 Your spell fizzles! Valid roots: ${validRoots.join(', ')}
-                            ${examples.length ? `<div class="examples">Example words: ${examples.join(', ')}</div>` : ''}
-                        </div>`;
-                    }
+                    resultText = this.renderReveal('💨 Your spell fizzles!');
                 }
 
-                this.updateStats();
-                this.saveGame();
-
-                document.getElementById('game-area').innerHTML = `
-                    <div class="question-counter">--- Spell ${this.questionsAnswered} ---</div>
-                    <div>${this.currentQuestion}</div>
-                    <div>Your incantation: ${this.escapeHtml(userAnswer)}</div>
-                    ${resultText}
-                    <div class="input-area">
-                        <button onclick="game.nextQuestion()">Continue</button>
-                    </div>
-                `;
-
-                if (this.questionsAnswered % 10 === 0) {
-                    setTimeout(() => this.offerBossFight(), 1000);
-                }
+                this.showCastResult(resultText, userAnswer);
             }
 
-            
             skipQuestion() {
-                const {answer, type} = this.currentAnswer;
                 this.registerFizzle();
+                this.showCastResult(this.renderReveal('💨 Spell released.'));
+            }
 
-                let resultText;
-                if (type === "definition") {
-                    const examples = this.getExamplesForDefinition(answer);
-                    resultText = `<div class="incorrect">
-                        💨 Spell released. The root meant: ${answer}
-                        ${examples.length ? `<div class="examples">Example words: ${examples.join(', ')}</div>` : ''}
-                    </div>`;
-                } else {
-                    const validRoots = this.definitionsToRoot[answer];
-                    const examples = this.getExamplesForRoot(validRoots[0]);
-                    resultText = `<div class="incorrect">
-                        💨 Spell released. Valid roots: ${validRoots.join(', ')}
-                        ${examples.length ? `<div class="examples">Example words: ${examples.join(', ')}</div>` : ''}
-                    </div>`;
-                }
-
+            // The screen shown after a cast resolves, however it resolved: save,
+            // echo the answer if there was one, then offer the next spell.
+            showCastResult(resultText, userAnswer) {
                 this.updateStats();
                 this.saveGame();
 
                 document.getElementById('game-area').innerHTML = `
                     <div class="question-counter">--- Spell ${this.questionsAnswered} ---</div>
                     <div>${this.currentQuestion}</div>
+                    ${userAnswer ? `<div>Your incantation: ${this.escapeHtml(userAnswer)}</div>` : ''}
                     ${resultText}
                     <div class="input-area">
                         <button onclick="game.nextQuestion()">Continue</button>
                     </div>
                 `;
-                
+
                 if (this.questionsAnswered % 10 === 0) {
                     setTimeout(() => this.offerBossFight(), 1000);
                 }
             }
 
-            
+
             nextQuestion() {
                 this.askQuestion();
             }
@@ -419,7 +581,7 @@
                     <div>The air crackles with arcane pressure...</div>
                     <div>A Level ${this.player.level} <span class="combo">${bossName}</span> blocks your path!</div>
                     <br>
-                    <div>Defeat it in a spell duel: cast roots to strike,</div>
+                    <div>Defeat it in a spell duel: cast ${this.wordSet.termLabel}s to strike,</div>
                     <div>and channel your mana for devastating blows.</div>
                     <div class="input-area">
                         <button onclick="game.startDuel('${bossName}')">Begin Duel</button>
@@ -430,21 +592,31 @@
 
             startDuel(bossName) {
                 const level = this.player.level;
+                const bossHp = 60 + level * 35;
+                // Strength counts double toward HP so gold buys survival as well
+                // as damage — otherwise boss hits outgrow your health pool.
+                const playerHp = 60 + this.player.strength * 2 + level * 10;
                 this.duel = {
                     bossName,
-                    bossMaxHp: 60 + level * 35,
-                    bossHp: 60 + level * 35,
+                    bossMaxHp: bossHp,
+                    bossHp: bossHp,
                     bossHit: 12 + level * 6,
-                    playerMaxHp: 60 + this.player.strength + level * 8,
-                    playerHp: 60 + this.player.strength + level * 8,
+                    playerMaxHp: playerHp,
+                    playerHp: playerHp,
                     duelStreak: 0,
-                    log: "The duel begins!"
+                    // Whether the Enter key channels. Sticky across exchanges so a
+                    // keyboard player can bank mana and still spend it.
+                    channelArmed: false
                 };
                 this.duelTurn();
             }
 
             baseSpellDamage() {
                 return 12 + Math.floor((this.player.intelligence + this.player.strength) / 3);
+            }
+
+            armChannel(on) {
+                if (this.duel) this.duel.channelArmed = on;
             }
 
             duelTurn() {
@@ -457,9 +629,6 @@
                 const base = this.baseSpellDamage();
                 const streakBonus = (d.duelStreak + 1) * 2;
                 const nextDamage = base + streakBonus;
-                const streakNote = d.duelStreak >= 1
-                    ? ` + ${streakBonus} streak`
-                    : '';
 
                 document.getElementById('game-area').innerHTML = `
                     <div>=== SPELL DUEL: ${d.bossName} ===</div>
@@ -471,13 +640,19 @@
                     <div>Answer to strike. A wrong answer lets the boss hit you for ${d.bossHit}.</div>
                     <div>${this.currentQuestion}</div>
                     <div class="examples">
-                        Your spell damage: <b>${nextDamage}</b> = ${base} base (INT+STR)${streakNote}.<br>
-                        Both buttons cast the same answer — Channel just spends 10 mana to hit <b>twice as hard</b>. (Mana: ${this.player.mana})
+                        Your spell damage: <b>${nextDamage}</b> = ${base} base (INT+STR) + ${streakBonus} streak.<br>
+                        Channel casts the same answer for 10 mana and doubles that whole number:
+                        <b>${nextDamage * 2}</b>. (Mana: ${this.player.mana}/${this.player.maxMana})
+                        ${canChannel
+                            ? `<br><label><input type="checkbox" onchange="game.armChannel(this.checked)" ${d.channelArmed ? 'checked' : ''}> Channel when I press Enter</label>`
+                            : `<br>Not enough mana to channel — you need 10.`}
                     </div>
                     <div class="input-area">
-                        <input type="text" id="answer-input" placeholder="Speak the incantation..." onkeypress="if(event.key==='Enter') game.duelCast(false)">
+                        <input type="text" id="answer-input" placeholder="Speak the incantation..." onkeypress="if(event.key==='Enter') game.duelCast(game.duel.channelArmed)">
                         <button onclick="game.duelCast(false)">⚡ Cast — ${nextDamage} dmg</button>
-                        <button onclick="game.duelCast(true)" ${canChannel ? '' : 'disabled'}>🔥 Channel — ${nextDamage * 2} dmg (10 mana)</button>
+                        <button onclick="game.duelCast(true)" ${canChannel ? '' : 'disabled'}>${canChannel
+                            ? `🔥 Channel — ${nextDamage * 2} dmg (10 mana)`
+                            : `🔥 Channel — needs 10 mana`}</button>
                     </div>
                 `;
                 document.getElementById('answer-input').focus();
@@ -490,8 +665,12 @@
                 if (!userAnswer) return;
 
                 // Channel is only valid with enough mana; fall back to a normal
-                // cast if mana ran out between render and click.
-                if (channel && this.player.mana < 10) channel = false;
+                // cast if mana ran out between render and click, and say so.
+                let fallbackNote = '';
+                if (channel && this.player.mana < 10) {
+                    channel = false;
+                    fallbackNote = `<div class="incorrect">Not enough mana to channel — you cast normally instead.</div>`;
+                }
 
                 const correct = this.evaluateAnswer(userAnswer);
                 let outcome;
@@ -504,18 +683,21 @@
                         damage *= 2;
                     }
                     d.bossHp -= damage;
-                    outcome = `<div class="correct">✨ Your spell strikes for ${damage}${channel ? ' (CHANNELED!)' : ''}!</div>`;
+                    outcome = `<div class="correct">✨ Your spell strikes for ${damage}${channel ? ' (CHANNELED — double damage, 10 mana spent!)' : ''}!</div>`;
                 } else {
                     d.duelStreak = 0;
                     // A wasted channel still costs mana — commit before the miss.
                     if (channel) this.player.mana -= 10;
                     d.playerHp -= d.bossHit;
-                    const {answer} = this.currentAnswer;
-                    outcome = `<div class="incorrect">💨 Your spell fizzles! ${this.escapeHtml(this.currentAnswer.type === "definition" ? "It meant: " + answer : "Valid roots: " + (this.definitionsToRoot[answer] || []).join(', '))}</div>
+                    const reveal = this.revealAnswer();
+                    outcome = `<div class="incorrect">💨 Your spell fizzles! ${reveal.headline}</div>
+                               ${channel ? `<div class="incorrect">Your channel is wasted — 10 mana burned.</div>` : ''}
                                <div class="incorrect">The ${d.bossName} strikes back for ${d.bossHit}!</div>`;
                 }
+                outcome = fallbackNote + outcome;
 
                 this.updateStats();
+                this.saveGame();
 
                 if (d.bossHp <= 0) return this.winDuel(outcome);
                 if (d.playerHp <= 0) return this.loseDuel(outcome);
@@ -538,7 +720,7 @@
                 const goldReward = 50 + this.player.level * 10;
                 this.player.gold += goldReward;
                 this.player.mana = this.player.maxMana;
-                this.player.streak = 0;
+                // The casting streak survives a victory — it was earned.
                 const bossName = this.duel.bossName;
                 this.duel = null;
                 this.updateStats();
@@ -574,6 +756,8 @@
             }
             
             showHelp() {
+                if (!this.wordSet) return this.showWordSetPicker();
+                const termLabel = this.wordSet.termLabel;
                 document.getElementById('game-area').innerHTML = `
                     <div>=== HOW TO PLAY ===</div>
                     <br>
@@ -582,8 +766,18 @@
                     <br>
                     <div class="combo">Casting</div>
                     <div class="examples">
-                        Answer a root question to cast a spell. Correct = gold + mana.
+                        Answer a word question to cast a spell. Correct = gold + mana.
                         Wrong or Fizzle = you lose your streak (but learn the answer).
+                        Questions alternate between the two directions: what a
+                        ${termLabel} means, and which ${termLabel}s carry a given meaning.
+                    </div>
+                    <br>
+                    <div class="combo">Word lists</div>
+                    <div class="examples">
+                        The <b>Word List</b> button switches spellbooks:
+                        ${Object.values(WORD_SETS).map(s => `<b>${s.name}</b> (${s.grade})`).join(' or ')}.
+                        Each keeps its own level, gold and gear.
+                        You're playing <b>${this.wordSet.name}</b>.
                     </div>
                     <br>
                     <div class="combo">Streaks &amp; combos</div>
@@ -595,8 +789,10 @@
                     <div class="combo">Gold, mana, INT &amp; STR</div>
                     <div class="examples">
                         Gold buys robes &amp; staves in the Emporium, which raise Intelligence
-                        and Strength. INT + STR determine your spell damage in duels.
-                        Mana is saved up to power Channels in duels.
+                        and Strength — INT + STR set your spell damage, and STR also adds
+                        duel HP. A new item <b>replaces</b> the one in that slot (the old one
+                        waits in your vault), and the strongest gear unlocks as you level up.
+                        Gold also buys mana crystals, which raise your maximum mana.
                     </div>
                     <br>
                     <div class="combo">Spell duels</div>
@@ -604,7 +800,9 @@
                         Every 10 spells a boss appears. Take turns answering: correct hits
                         the boss (damage from INT+STR plus a per-duel streak bonus), wrong lets
                         it hit you. <b>Cast</b> is a normal hit; <b>Channel</b> is the same hit
-                        for 10 mana that deals DOUBLE damage. Win to level up and refill mana.
+                        for 10 mana that doubles the whole number shown. Tick "Channel when I
+                        press Enter" to channel from the keyboard. Win to level up, refill mana,
+                        and keep your casting streak.
                     </div>
                     <div class="input-area">
                         <button onclick="game.askQuestion()">Back to Casting</button>
@@ -612,73 +810,196 @@
                 `;
             }
 
+            // The strongest gear a player of this level may buy. Gold alone used
+            // to unlock everything within the first dozen spells, which froze
+            // INT/STR while bosses kept scaling.
+            levelTierLimit() {
+                return 100 + this.player.level * 120;
+            }
+
+            // Level at which an item becomes purchasable, from levelTierLimit().
+            levelNeededFor(cost) {
+                return Math.max(1, Math.ceil((cost - 100) / 120));
+            }
+
+            // A repeatable gold sink that also keeps Channels relevant: max mana
+            // grows with gold spent, but never beyond what your level allows.
+            manaUpgrade() {
+                const cap = BASE_MAX_MANA + this.player.level * 10;
+                return {
+                    cost: this.player.maxMana * 10,
+                    amount: 10,
+                    cap,
+                    available: this.player.maxMana < cap
+                };
+            }
+
+            buyManaUpgrade() {
+                const upgrade = this.manaUpgrade();
+                if (!upgrade.available) return this.showShop();
+                if (this.player.gold < upgrade.cost) {
+                    return this.showPurchaseFailure(upgrade.cost);
+                }
+                this.player.gold -= upgrade.cost;
+                this.player.maxMana += upgrade.amount;
+                this.updateStats();
+                this.saveGame();
+                this.showPurchaseResult(
+                    `Mana crystal absorbed! Max mana is now ${this.player.maxMana}.`);
+            }
+
+            // What equipping this item would do to your stats, given what's
+            // already in that slot — equipping replaces, it doesn't stack.
+            netVsEquipped(itemName) {
+                const item = this.shopItems[itemName];
+                const slot = item.type === "armor" ? this.player.armor : this.player.weapon;
+                const current = gearStats(slot);
+                return {
+                    strength: item.strength - current.strength,
+                    intelligence: item.intelligence - current.intelligence
+                };
+            }
+
+            renderStatDelta(net) {
+                const part = (value, label) =>
+                    `${value >= 0 ? '+' : ''}${value} ${label}`;
+                return `${part(net.strength, 'STR')}, ${part(net.intelligence, 'INT')}`;
+            }
+
             showShop() {
-                const maxAffordable = this.player.gold;
-                const nextTierLimit = maxAffordable + 100;
-                
-                let shopHTML = '<div>=== ARCANE EMPORIUM ===</div><div>Spend gold on robes and staves to deepen your power.</div><br>';
+                if (!this.wordSet) return this.showWordSetPicker();
+                const goldLimit = this.player.gold + 100;
+                const tierLimit = this.levelTierLimit();
+
+                let shopHTML = `<div>=== ARCANE EMPORIUM ===</div>
+                    <div>Spend gold on robes and staves to deepen your power.</div>
+                    <div class="examples">Equipping replaces what's in that slot, so the numbers
+                    below are the change to <b>your</b> stats. Currently wearing
+                    ${this.player.armor} and wielding ${this.player.weapon}
+                    (${this.player.strength} STR, ${this.player.intelligence} INT).</div><br>`;
+
                 let hasItems = false;
-                
+                let lockedLevel = null;
+
                 Object.entries(this.shopItems).forEach(([item, stats]) => {
-                    if (stats.cost <= nextTierLimit && !this.player.ownedItems.includes(item)) {
-                        hasItems = true;
-                        const affordable = stats.cost <= this.player.gold;
-                        const symbol = affordable ? '✓' : '✗';
-                        const className = affordable ? 'affordable' : 'unaffordable';
-                        shopHTML += `<div class="shop-item ${className}" onclick="game.buyItem('${item}')">
-                            ${symbol} ${item}: ${stats.cost} gold (+${stats.strength} STR, +${stats.intelligence} INT)
-                        </div>`;
+                    if (this.player.ownedItems.includes(item)) return;
+
+                    if (stats.cost > tierLimit) {
+                        // Too strong for this level: remember when it opens up.
+                        const needed = this.levelNeededFor(stats.cost);
+                        if (stats.cost <= goldLimit && (lockedLevel === null || needed < lockedLevel)) {
+                            lockedLevel = needed;
+                        }
+                        return;
                     }
+                    if (stats.cost > goldLimit) return;
+
+                    hasItems = true;
+                    const affordable = stats.cost <= this.player.gold;
+                    const symbol = affordable ? '✓' : '✗';
+                    const className = affordable ? 'affordable' : 'unaffordable';
+                    const net = this.netVsEquipped(item);
+                    shopHTML += `<div class="shop-item ${className}" onclick="game.buyItem('${item}')">
+                        ${symbol} ${item}: ${stats.cost} gold (${this.renderStatDelta(net)} for you)
+                    </div>`;
                 });
-                
+
+                const upgrade = this.manaUpgrade();
+                if (upgrade.available && upgrade.cost <= goldLimit) {
+                    hasItems = true;
+                    const affordable = upgrade.cost <= this.player.gold;
+                    shopHTML += `<div class="shop-item ${affordable ? 'affordable' : 'unaffordable'}" onclick="game.buyManaUpgrade()">
+                        ${affordable ? '✓' : '✗'} mana crystal: ${upgrade.cost} gold
+                        (+${upgrade.amount} max mana, now ${this.player.maxMana}/${upgrade.cap} for level ${this.player.level})
+                    </div>`;
+                }
+
                 if (!hasItems) {
                     shopHTML += '<div>The shelves are bare for now — you own all you can afford!</div><br>';
+                }
+                if (lockedLevel !== null) {
+                    shopHTML += `<div class="examples">Stronger gear than this is held back until level ${lockedLevel}. Win duels to unlock it.</div>`;
+                }
+
+                // Anything owned but not equipped can be swapped back in for free.
+                const vault = this.player.ownedItems.filter(item =>
+                    this.shopItems[item] &&
+                    item !== this.player.armor &&
+                    item !== this.player.weapon);
+                if (vault.length) {
+                    shopHTML += '<br><div>=== YOUR VAULT ===</div>';
+                    vault.forEach(item => {
+                        const net = this.netVsEquipped(item);
+                        shopHTML += `<div class="shop-item" onclick="game.equipItem('${item}')">
+                            ▸ equip ${item} (${this.renderStatDelta(net)} for you)
+                        </div>`;
+                    });
                 }
 
                 shopHTML += `<div class="input-area">
                     <button onclick="game.askQuestion()">Back to Casting</button>
                 </div>`;
-                
+
                 document.getElementById('game-area').innerHTML = shopHTML;
             }
-            
+
+            // Move an owned item into its slot, swapping out whatever was there.
+            equipItem(itemName) {
+                const item = this.shopItems[itemName];
+                if (!item || !this.player.ownedItems.includes(itemName)) return;
+
+                const net = this.netVsEquipped(itemName);
+                this.player.strength += net.strength;
+                this.player.intelligence += net.intelligence;
+                if (item.type === "armor") {
+                    this.player.armor = itemName;
+                } else {
+                    this.player.weapon = itemName;
+                }
+
+                this.updateStats();
+                this.saveGame();
+                return net;
+            }
+
             buyItem(itemName) {
                 const item = this.shopItems[itemName];
-                if (this.player.gold >= item.cost) {
-                    this.player.gold -= item.cost;
-                    this.player.strength += item.strength;
-                    this.player.intelligence += item.intelligence;
+                if (!item) return;
+                if (this.player.gold < item.cost) return this.showPurchaseFailure(item.cost);
+
+                this.player.gold -= item.cost;
+                if (!this.player.ownedItems.includes(itemName)) {
                     this.player.ownedItems.push(itemName);
-                    
-                    if (item.type === "armor") {
-                        this.player.armor = itemName;
-                    } else {
-                        this.player.weapon = itemName;
-                    }
-                    
-                    this.updateStats();
-                    this.saveGame();
-                    
-                    document.getElementById('game-area').innerHTML = `
-                        <div class="correct">Acquired ${itemName}!</div>
-                        <div class="input-area">
-                            <button onclick="game.showShop()">Keep Browsing</button>
-                            <button onclick="game.askQuestion()">Back to Casting</button>
-                        </div>
-                    `;
-                } else {
-                    document.getElementById('game-area').innerHTML = `
-                        <div class="incorrect">Not enough gold! Need ${item.cost} gold.</div>
-                        <div class="input-area">
-                            <button onclick="game.showShop()">Back to Emporium</button>
-                        </div>
-                    `;
                 }
+                const net = this.equipItem(itemName);
+                this.showPurchaseResult(
+                    `Acquired and equipped ${itemName}! (${this.renderStatDelta(net)})`);
+            }
+
+            showPurchaseResult(message) {
+                document.getElementById('game-area').innerHTML = `
+                    <div class="correct">${message}</div>
+                    <div class="input-area">
+                        <button onclick="game.showShop()">Keep Browsing</button>
+                        <button onclick="game.askQuestion()">Back to Casting</button>
+                    </div>
+                `;
+            }
+
+            showPurchaseFailure(cost) {
+                document.getElementById('game-area').innerHTML = `
+                    <div class="incorrect">Not enough gold! Need ${cost} gold.</div>
+                    <div class="input-area">
+                        <button onclick="game.showShop()">Back to Emporium</button>
+                    </div>
+                `;
             }
         }
         
+        migrateLegacySave();
         let game = new EtymancerGame();
-        
+        game.showStart();
+
         function startGame() {
             game.askQuestion();
         }
@@ -690,7 +1011,8 @@
         function confirmNewGame() {
             const btn = document.getElementById('new-game-btn');
             if (btn.textContent === 'New Game') {
-                btn.textContent = 'Start a new game? This will reset all progress.';
+                const listName = game.wordSet ? game.wordSet.name : 'this';
+                btn.textContent = `Start a new game? This resets your ${listName} progress.`;
                 btn.onclick = () => newGame();
                 setTimeout(() => {
                     if (btn.textContent !== 'New Game') {
@@ -702,10 +1024,11 @@
         }
         
         function newGame() {
+            if (!game.wordSet) return game.showWordSetPicker();
             game.newGame();
             document.getElementById('game-area').innerHTML = `
                 <div class="correct">🎮 NEW GAME STARTED! 🎮</div>
-                <div>All progress has been reset. Ready for a fresh adventure?</div>
+                <div>Progress on the ${game.wordSet.name} list has been reset. Ready for a fresh adventure?</div>
                 <div class="input-area">
                     <button onclick="startGame()">Start Playing</button>
                 </div>
